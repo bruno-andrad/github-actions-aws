@@ -1,0 +1,63 @@
+name: s3-depl
+
+on: 
+  workflow_call:
+      inputs:
+          ENV:
+            type: string
+            default: "dev"
+          ENVNAME:
+            type: string
+            default: "development/app-front"
+          BUCKETNAME:
+            type: string
+          DISTRIBUTIONID:
+            type: string
+      secrets:
+          AWS_ACCESS_KEY_ID:
+            required: true
+          AWS_SECRET_ACCESS_KEY:
+            required: true
+
+jobs:
+  build:
+    name: deploy to s3
+    environment: 
+      name: ${{ inputs.ENV }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      env:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: "us-east-1"       
+        name: ${{ inputs.ENV }}
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: "us-east-1"     
+      
+    - name: Configure environment variables
+      id: env-vars
+      env:
+        REPO: ${{ github.repository }}
+      run: |
+        pwd
+        apt-get update && apt-get install jq curl libpq-dev -y
+        aws secretsmanager get-secret-value --secret-id ${{ inputs.ENVNAME }} --query SecretString --output text > secrets.json
+        cat secrets.json | jq -r "to_entries|map(\"\(.key)=\\\"\(.value|tostring)\\\"\")|.[]" > .env
+        sed -i 's/\"//g' .env
+
+    - name: Build App
+      run: |
+        yarn install && yarn build
+
+    - name: Deploy app build to S3 bucket
+      run: aws s3 sync ./dist/ s3://${{ inputs.BUCKETNAME }} --delete
+
+    - name: Invalidation Cache
+      run: aws cloudfront create-invalidation --distribution-id ${{ inputs.DISTRIBUTIONID }} --paths "/"

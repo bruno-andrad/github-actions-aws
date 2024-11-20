@@ -1,0 +1,58 @@
+name: Create PR
+
+on:
+  workflow_call:
+    inputs:
+      GHTOKEN:
+        type: string
+      ENVIRONMENT:
+        required: true
+        type: string
+    secrets:
+      GHTOKEN:
+        required: true
+
+jobs:
+    reusable_workflow_call-create-pr:
+        name: Criando Pull Request
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.ENVIRONMENT }}
+        env:
+          GHTOKEN: ${{ secrets.GHTOKEN }}
+        steps:
+        - name: Checkout 
+          uses: actions/checkout@v3
+        
+        - name: Abrindo PR para release
+          if: github.ref == 'refs/heads/develop'
+          id: abrindo-pr-to-release
+          run: |
+            echo ${{ env.GHTOKEN }} > ghtoken.txt
+            cat ghtoken.txt
+            gh auth login --with-token < ghtoken.txt
+            gh pr create --title "Develop ➡️ Homolog 🐸" --base release --head develop --body \
+            '''
+            Pull Request aberto para alteracoes em homologacao. Por favor, preencha os campos abaixo:
+            
+            Responsavel= ${{ github.actor }}
+            Repositorio= https://github.com/${{ github.repository }}
+            Informacoes= []
+            Data=
+            ''' || echo PR criado
+    
+        - name: Abrindo PR para main
+          if: github.ref == 'refs/heads/release'
+          id: abrindo-pr-to-main
+          run: |
+            echo ${{ env.GHTOKEN }} > ghtoken.txt
+            cat ghtoken.txt
+            gh auth login --with-token < ghtoken.txt
+            gh pr create --title "Homolog ➡️ Main 🐨" --base main --head release --body \
+            '''
+            Pull Request aberto para alteracoes em producao. Por favor, preencha os campos abaixo:
+            
+            Responsavel= ${{ github.actor }}
+            Repositorio= https://github.com/${{ github.repository }}
+            Informacoes= []
+            Data=
+            ''' || echo PR criado

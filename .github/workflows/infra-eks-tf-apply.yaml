@@ -1,0 +1,61 @@
+name: Terraform Plan
+
+on:
+  workflow_call:
+    inputs:
+      REGION:
+        required: true
+        type: string
+      ENVIRONMENT:
+        type: string
+        required: true
+      CLUSTER_NAME:
+        type: string
+        required: true
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+jobs:
+    reusable_workflow_call-terraform-plan:
+        name: Terraform Apply
+        runs-on: self-hosted
+        
+        environment: ${{ inputs.ENVIRONMENT }}
+        steps:
+        - uses: actions/checkout@v3
+        - uses: hashicorp/setup-terraform@v2
+        
+        - name: Configurando credenciais AWS 
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+
+        - name: Terraform Init
+          id: init
+          run: |
+            if [ $GITHUB_REF_NAME = 'main' ]; then
+              terraform init -backend-config="bucket=tf-state-santuu-prod"
+              echo "Deploy em prod"
+            elif [ $GITHUB_REF_NAME = 'release' ]; then
+              terraform init -backend-config="bucket=tf-state-santuu-hom"
+              echo "Deploy em homolog"
+            else
+              terraform init -backend-config="bucket=tf-state-santuu-dev"
+              echo "Deploy em dev"
+            fi
+            
+        - name: Terraform Apply
+          id: apply
+          run: |
+            aws eks update-kubeconfig --region us-east-1 --name ${{ inputs.CLUSTER_NAME }}
+            terraform apply -auto-approve -no-color -var-file inventories/${{ inputs.ENVIRONMENT }}/vars.tfvars
+          continue-on-error: false

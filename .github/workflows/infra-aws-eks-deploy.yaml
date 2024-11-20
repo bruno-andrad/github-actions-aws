@@ -1,0 +1,66 @@
+name: Deploy to ECS
+
+on: 
+    workflow_call:
+        inputs:
+            REGION:
+                type: string
+                default: "us-east-1"
+            APPNAME:
+                type: string
+            NAMESPACE:
+                type: string
+            ENV:
+                type: string
+            ECRREGISTRY:
+                type: string
+            CLUSTERNAME:
+                type: string
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+
+jobs:
+    reusable_workflow_call-aws-deploy-ecs:
+        name: Deploy App to Eks Cluster
+        runs-on: self-hosted
+        environment: ${{ inputs.ENV }}
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        steps:
+        
+        - name: Checkout 
+          uses: actions/checkout@v3
+        
+        - name: Configuring AWS credentials
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+
+        - name: Deploy to EKS cluster
+          run: |
+            echo 'Iniciando Deploy no EKS'
+            # sudo apt-get update && sudo apt-get install jq curl libpq-dev -y
+            # curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            # install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            # mkdir ~/.kube
+            # mv "$config" ~/.kube/config
+
+            sed -i 's/IMAGE/${{ inputs.ECRREGISTRY }}\/${{ inputs.APPNAME }}-${{ inputs.ENV }}:${{ github.sha }}/g' ./eks/kubernetes.yaml
+            sed -i 's/APPNAME/${{ inputs.APPNAME }}/g' ./eks/kubernetes.yaml
+            sed -i 's/NAMESPACE/${{ inputs.NAMESPACE }}/g' ./eks/kubernetes.yaml
+
+            TOKEN=`aws ecr get-login-password --region eu-central-1 | cut -d' ' -f6`
+            aws eks update-kubeconfig --region ${{ inputs.REGION }} --name ${{ inputs.CLUSTERNAME }}
+            kubectl create secret docker-registry ecr-login --docker-server=${{ inputs.ECRREGISTRY }}/${{ inputs.APPNAME }}-${{ inputs.ENV }} --docker-username=AWS --docker-password=$TOKEN -n ${{ inputs.NAMESPACE }}
+            kubectl apply -f ./eks/
+            

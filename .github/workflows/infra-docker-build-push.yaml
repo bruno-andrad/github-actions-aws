@@ -1,0 +1,68 @@
+name: Terraform Plan
+
+on:
+  workflow_call:
+    inputs:
+      ECR_REGISTRY:
+        required: true
+        type: string
+      ENVIRONMENT:
+        type: string
+        required: true
+      REGION:
+        type: string
+        default: "us-east-1"      
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+jobs:
+    reusable_workflow_call-docker-build-push:
+        name: Docker build and push
+        runs-on: ubuntu-latest
+        
+        environment: ${{ inputs.ENVIRONMENT }}
+        steps:
+        - name: Checkout 
+          uses: actions/checkout@v3
+
+        - name: Download variables
+          uses: actions/download-artifact@v3
+          with:
+            name: variables
+        
+        - name: Configuring AWS credentials
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+
+        - name: Login to Amazon ECR
+          id: login-ecr
+          uses: aws-actions/amazon-ecr-login@v1
+          with:
+            REGION: ${{ inputs.REGION }}
+
+        - name: Copy Variables
+          id: Move-ENV
+          run: |
+            cp .env src/.env || echo 'diretorio src nao existe'
+            ls -lha src/ || echo 'mantendo .env no raiz'
+            
+        - name: Docker Build
+          id: Docker-Build
+          run: |
+            docker build -f ./docker/${{ inputs.ENVIRONMENT }}/Dockerfile -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} . || docker build -f ./Dockerfile -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} .
+
+        - name: Docker Push
+          id: Docker-Push
+          run: |
+            docker push ${{ inputs.ECR_REGISTRY }}:${{ github.sha }}
+            echo "::set-output name=image::${{ inputs.ECR_REGISTRY }}:${{ github.sha }}"

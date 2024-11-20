@@ -1,0 +1,63 @@
+name: Deploy to Lambda
+
+on: 
+    workflow_call:
+        inputs:
+            REGION:
+                type: string
+                default: "us-east-1"
+            ENV:
+                type: string
+            ENVNAME:
+                type: string
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+
+jobs:
+    reusable_workflow_call-aws-deploy-ecs:
+        name: Deploy serverless Lambda
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.ENV }}
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        steps:
+        
+        - name: Checkout 
+          uses: actions/checkout@v3
+        
+        - name: Configuring AWS credentials
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+
+        - name: Configure environment variables
+          id: env-vars
+          env:
+            REPO: ${{ github.repository }}
+          run: |
+            pwd
+            apt-get update && apt-get install jq curl libpq-dev -y
+            aws secretsmanager get-secret-value --secret-id ${{ inputs.ENVNAME }} --query SecretString --output text > secrets.json
+            cat secrets.json | jq -r "to_entries|map(\"\(.key)=\\\"\(.value|tostring)\\\"\")|.[]" > .env
+            sed -i 's/\"//g' .env
+
+        - name: Deploy to Lambda function
+          run: |
+            python --version
+            pip3 install poetry
+            poetry export --output requirements.txt --without-hashes || echo "arquivo nao encontrado"
+            npm --version
+            npm init -y
+            npm install --save-dev serverless-python-requirements
+            npm install -g serverless
+            SLS_DEBUG=* serverless deploy

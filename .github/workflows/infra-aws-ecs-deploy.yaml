@@ -1,0 +1,86 @@
+name: Deploy to ECS
+
+on: 
+    workflow_call:
+        inputs:
+            REGION:
+                type: string
+                default: "us-east-1"
+            nameContainer:
+                type: string
+            Env:
+                type: string
+            CONFIGHostEndpoint:
+                type: string
+            VPCId:
+                type: string
+            SubnetA:
+                type: string
+            SubnetB:
+                type: string
+            SubnetC:
+                type: string
+            loadBalancerARN:
+                type: string
+            clusterARN:
+                type: string
+            ECR_REGISTRY:
+                type: string
+            clusterName:
+                type: string
+            CONFIGPriority:
+                type: number
+            environment:
+                type: string
+        secrets:
+            AWS_ACCESS_KEY_ID:
+                required: true
+            AWS_SECRET_ACCESS_KEY:
+                required: true
+
+jobs:
+    reusable_workflow_call-aws-deploy-ecs:
+        name: Deploy App to Ecs Cluster
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.environment }}
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        steps:
+        
+        - name: Checkout 
+          uses: actions/checkout@v3
+        
+        - name: Configuring AWS credentials
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+
+        - name: Deploy to ECS cluster
+          uses: aws-actions/aws-cloudformation-github-deploy@master
+          with:
+            name: "${{ inputs.nameContainer }}-${{ inputs.Env }}"
+            template: aws/${{ inputs.environment }}/cf-template.yml
+            capabilities: CAPABILITY_NAMED_IAM
+            no-fail-on-empty-changeset: "1"
+            parameter-overrides: >-
+                nameContainer=${{ inputs.nameContainer }}-${{ inputs.Env }},
+                nameService=${{ inputs.nameContainer }}-${{ inputs.Env }}-svc,
+                CONFIGHostEndpoint=${{ inputs.CONFIGHostEndpoint }},
+                Env=${{ inputs.Env }},
+                nameApplication=${{ inputs.nameContainer }},
+                VPCId=${{ inputs.VPCId }},
+                SubnetA=${{ inputs.SubnetA }},
+                SubnetB=${{ inputs.SubnetB }},
+                SubnetC=${{ inputs.SubnetC }},
+                loadBalancerARN=${{ inputs.loadBalancerARN }},
+                clusterName=${{ inputs.clusterName }},
+                Image=${{ inputs.nameContainer }}-${{ inputs.Env }}:${{ github.sha }},
+                clusterARN=${{ inputs.clusterARN }},
+                CONFIGPriority= ${{ inputs.CONFIGPriority }}

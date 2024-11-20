@@ -1,0 +1,47 @@
+name: Stop instance EKS DEPLOYER
+
+on:
+  workflow_call:
+    inputs:
+      REGION:
+        required: true
+        type: string
+      ENVIRONMENT:
+        required: true
+        type: string
+      INSTANCE_ID:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+    reusable_workflow_call-set-credentials:
+        name: Stop instance EKS DEPLOYER
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.ENVIRONMENT }} 
+        outputs:
+          AWS_ACCESS_KEY_ID: ${{ steps.export-credentials.outputs.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ steps.export-credentials.outputs.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ steps.export-credentials.outputs.AWS_REGION }}
+        steps:
+        - name: Checkout 
+          uses: actions/checkout@v3
+        
+        - name: Configurando credenciais AWS 
+          id: aws-credentials
+          env:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ inputs.REGION }}
+        
+        - name: Desligando instancia de deploy
+          run: aws ec2 stop-instances --instance-ids ${{ inputs.INSTANCE_ID }} || echo 'Instancia ja esta desligada'
