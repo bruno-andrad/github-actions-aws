@@ -29,8 +29,8 @@ jobs:
 
         - name: Download variables
           uses: actions/download-artifact@v3
-          with:
-            name: variables
+          # with:
+          #   name: variables
         
         - name: Configuring AWS credentials
           id: aws-credentials
