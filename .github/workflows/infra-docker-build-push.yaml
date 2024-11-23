@@ -27,10 +27,10 @@ jobs:
         - name: Checkout 
           uses: actions/checkout@v3
 
-        # - name: Download variables
-        #   uses: actions/download-artifact@v3
-          # with:
-          #   name: variables
+        - name: Download variables
+          uses: actions/download-artifact@v3
+          with:
+            name: variables
         
         - name: Configuring AWS credentials
           id: aws-credentials
