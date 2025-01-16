@@ -11,7 +11,10 @@ on:
         required: true
       REGION:
         type: string
-        default: "us-east-1"      
+        default: "us-east-1"
+      DOCKERFILE_PATH:
+        type: string
+        default: ./Dockerfile
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -59,7 +62,7 @@ jobs:
         - name: Docker Build
           id: Docker-Build
           run: |
-            docker build -f ./docker/${{ inputs.ENVIRONMENT }}/Dockerfile -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} . || docker build -f ./Dockerfile -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} .
+            docker build -f ${{ inputs.DOCKERFILE_PATH }} -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} . || docker build -f ./Dockerfile -t ${{ inputs.ECR_REGISTRY }}:${{ github.sha }} .
 
         - name: Docker Push
           id: Docker-Push
